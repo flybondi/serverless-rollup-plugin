@@ -1,0 +1,71 @@
+{
+  "name": "serverless-rollup-plugin",
+  "version": "0.0.0-development",
+  "description": "A rollup plugin for serverless",
+  "main": "index.js",
+  "author": "Flybondi <dev@flybondi.com>",
+  "license": "UNLICENSED",
+  "private": false,
+  "keywords": [
+    "serverless",
+    "1.0",
+    "rollup",
+    "es6",
+    "plugin",
+    "yarn",
+    "flybondi"
+  ],
+  "scripts": {
+    "lint": "eslint index.js src/**",
+    "prettier": "prettier --write index.js",
+    "start": "serverless offline start --environment development",
+    "test.coverage": "yarn test --coverage --coverageDirectory .coverage",
+    "test.watch": "jest --watchAll",
+    "test": "jest"
+  },
+  "peerDependencies": {
+    "rollup": "^1.0.0"
+  },
+  "devDependencies": {
+    "commitlint": "^7.2.1",
+    "eslint": "^5.11.0",
+    "eslint-config-prettier": "^3.3.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^8.0.0",
+    "eslint-plugin-prettier": "^3.0.0",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "husky": "^1.2.1",
+    "jest": "^23.6.0",
+    "lint-staged": "^8.1.0",
+    "prettier": "^1.15.3",
+    "rollup": "^1.0.0",
+    "serverless": "^1.35.1"
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -e $GIT_PARAMS",
+      "pre-commit": "lint-staged",
+      "pre-push": "run-s test"
+    }
+  },
+  "lint-staged": {
+    "src/**/*.{js,jsx,json}": [
+      "prettier --write",
+      "eslint --fix",
+      "git add"
+    ]
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
+  },
+  "dependencies": {
+    "bluebird": "^3.5.3",
+    "fs-extra": "^7.0.1",
+    "ramda": "^0.26.1",
+    "yup": "^0.26.6"
+  }
+}
