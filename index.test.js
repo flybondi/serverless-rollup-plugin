@@ -18,11 +18,3 @@ test('should create a new plugin instance', () => {
   expect(plugin).toHaveProperty('commands');
   expect(plugin).toHaveProperty('hooks');
 });
-
-test('should set input and output options', () => {
-  const plugin = new Plugin(mockServerless, mockOptions);
-
-  plugin.beforeRollupStart();
-  expect(plugin).toHaveProperty('inputOptions');
-  expect(plugin).toHaveProperty('outputOptions');
-});
