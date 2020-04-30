@@ -40,7 +40,11 @@ const validateOutput = ifElse(isArray, arrayOutputSchema.validateSync, outputSch
  * @returns function to log on console
  */
 const createLogger = (serverless, options) =>
-  ifElse(isVerbose, () => path(['cli', 'log'], serverless), () => F)(options);
+  ifElse(
+    isVerbose,
+    () => path(['cli', 'log'], serverless),
+    () => F
+  )(options);
 
 /**
  *
