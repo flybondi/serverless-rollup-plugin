@@ -32,9 +32,9 @@ The configuration of the plugin is done by defining a `custom: rollup` object in
 ## Usage
 ### Automatic bundling
 The normal Serverless deploy procedure will automatically bundle with rollup:
-  * Create the Serverless project with serverless create -t aws-nodejs
+  * Create the Serverless project with `serverless create -t aws-nodejs`
   * Install Serverless Rollup as above
-  * Deploy with serverless deploy
+  * Deploy with `serverless deploy`
 
 [flybondi]: https://www.flybondi.com
 [rollup]: https://rollupjs.org
