@@ -230,7 +230,7 @@ class ServerlessRollupPlugin {
   }
 
   watch() {
-    const watchOptions = pathOr(false, ['watch'], this.config);
+    const watchOptions = this.config.watch || false;
 
     if (watchOptions) {
       this.log('Rollup: Watch mode is enable', this.config.watch);
