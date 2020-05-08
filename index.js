@@ -1,6 +1,6 @@
 'use strict';
-const { rollup } = require('rollup');
-const { F, has, ifElse, is, path, pathOr, propEq } = require('ramda');
+const { rollup, watch } = require('rollup');
+const { F, ifElse, is, path, pathOr, propEq } = require('ramda');
 const { arrayOutputSchema, inputSchema, outputSchema } = require('./src/schemas');
 const fse = require('fs-extra');
 const Promise = require('bluebird');
@@ -19,13 +19,6 @@ const isArray = is(Array);
  * @returns boolean
  */
 const isVerbose = propEq('verbose', true);
-/**
- * Check if given object has the property `watch`
- * @func
- * @param {object} value to check property `watch`
- * @returns boolean
- */
-const hasWatch = has('watch');
 /**
  * This method will a function that will we use to validate the config schema.
  * @func
@@ -102,6 +95,24 @@ class ServerlessRollupPlugin {
       'after:package:function:package': () =>
         Promise.bind(this).then(() => this.serverless.pluginManager.spawn('rollup:clean')),
 
+      // Serverless offline support
+      'before:offline:start': () =>
+        Promise.bind(this)
+          .then(() => this.setOfflineMode())
+          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
+          .then(() => this.serverless.pluginManager.spawn('rollup:compile'))
+          .then(() => this.watch()),
+
+      'before:offline:start:init': () =>
+        Promise.bind(this)
+          .then(() => this.setOfflineMode())
+          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
+          .then(() => this.serverless.pluginManager.spawn('rollup:compile'))
+          .then(() => this.watch()),
+
+      'before:offline:start:end': () =>
+        Promise.bind(this).then(() => this.serverless.pluginManager.spawn('rollup:clean')),
+
       // Serverless rollup
       'before:rollup:compile': this.validate.bind(this),
       'rollup:compile': this.bundle.bind(this),
@@ -115,6 +126,10 @@ class ServerlessRollupPlugin {
     };
 
     this.log = createLogger(this.serverless, this.options).bind(this.serverless.cli);
+  }
+
+  setOfflineMode() {
+    this.options.isOffline = true;
   }
 
   getConfigPath() {
@@ -133,14 +148,16 @@ class ServerlessRollupPlugin {
 
   async bundle() {
     this.log('Rollup: Config file is valid, about to bundle lambda function');
-    try {
-      const bundle = await rollup(this.config);
-      await bundle.write(this.config.output);
+    if (!this.options.isOffline && !this.options.watch) {
+      try {
+        const bundle = await rollup(this.config);
+        await bundle.write(this.config.output);
 
-      this.log('Rollup: Bundle created successfully!');
-    } catch (error) {
-      this.log('Rollup: There was an error while bundling the service with rollup.');
-      throw error;
+        this.log('Rollup: Bundle created successfully!');
+      } catch (error) {
+        this.log('Rollup: There was an error while bundling the service with rollup.');
+        throw error;
+      }
     }
   }
 
@@ -150,6 +167,10 @@ class ServerlessRollupPlugin {
 
     if (this.serverless.utils.dirExistsSync(folderPath)) {
       fse.removeSync(folderPath);
+    }
+
+    if (this.config.watch) {
+      this.watcher.close();
     }
   }
 
@@ -169,7 +190,6 @@ class ServerlessRollupPlugin {
 
     // Modify functions handler to use the rollup output folder
     this.log('Rollup: Prepare functions handler location');
-
     functionNames.forEach(name => {
       const func = this.serverless.service.getFunction(name);
       const handler = `${output}/${func.handler}`;
@@ -192,8 +212,8 @@ class ServerlessRollupPlugin {
   validate() {
     const path = this.getConfigPath();
     this.log(`Rollup: Starting rollup plugin with config located at ${path}`);
-
     const config = require(path);
+
     if (isArray(config)) {
       this.log(
         'Rollup: This plugin does not support multiple inputs, please check the rollup config file'
@@ -201,18 +221,45 @@ class ServerlessRollupPlugin {
       throw new Error('Invalid rollup config');
     }
 
-    if (hasWatch(config)) {
-      this.log(
-        'Rollup: This plugin does not support watch mode, please check the rollup config file'
-      );
-      throw new Error('Watch property is not supported');
-    }
-
     if (inputSchema.validateSync(config) && validateOutput(config.output)) {
       this.config = config;
     } else {
-      this.log('Given config file is not valid, please check the rollup config file');
+      this.log('Rollup: Given config file is not valid, please check the rollup config file');
       throw new Error('Rollup config is not valid');
+    }
+  }
+
+  watch() {
+    const watchOptions = this.config.watch || false;
+
+    if (watchOptions) {
+      this.log('Rollup: Watch mode is enable', this.config.watch);
+      const watcher = watch(this.config);
+      watcher.on('event', event => {
+        const { code, duration } = event;
+        switch (code) {
+          case 'START':
+            this.log(
+              `Rollup: [${new Date().toISOString()}] - Watcher started and waiting for changes`
+            );
+            break;
+          case 'BUNDLE_END':
+            this.log(
+              `Rollup: [${new Date().toISOString()}] - Bundle has been rebuilt in ${duration}`
+            );
+            break;
+          case 'ERROR':
+            this.log(
+              `Rollup: [${new Date().toISOString()}] - There is an error with the bundle, please check what are you trying to build.`
+            );
+            break;
+          default:
+            break;
+        }
+      });
+
+      this.watcher = watcher;
+      this.options.watch = true;
     }
   }
 }
