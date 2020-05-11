@@ -1,0 +1,30 @@
+name: Release
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+on:
+  push:
+    branches: [ master ]
+    
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  release:
+    name: Release new version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@2.1.0
+      - name: Install deps
+        uses: borales/actions-yarn@v2.1.0
+        with:
+          cmd: install --pure-lockfile # will run `yarn install` command
+      - name: Semantic release
+        uses: cycjimmy/semantic-release-action@v2.4.1
+        semantic_version: next
+        extra_plugins: |
+          @semantic-release/git
+          @semantic-release/exec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+          
