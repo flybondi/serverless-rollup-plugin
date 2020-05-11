@@ -16,12 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2.1.0
       - name: Jest
-        uses: mattallty/jest-github-action@v1.0.2
+        uses: mattallty/jest-github-action@v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_STEP_DEBUG: true
-        with:
-          test-command: "yarn test"
 
   eslint:
     name: runner / ESLint
