@@ -19,6 +19,7 @@ jobs:
         uses: mattallty/jest-github-action@v1.0.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIONS_STEP_DEBUG: true
         with:
           test-command: "yarn test"
 
