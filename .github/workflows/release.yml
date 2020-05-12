@@ -19,13 +19,13 @@ jobs:
           cmd: install --pure-lockfile # will run `yarn install` command
       - name: Semantic release
         uses: cycjimmy/semantic-release-action@v2.4.1
-        semantic_version: next
-        extra_plugins: |
-          @semantic-release/commit-analizer
-          @semantic-release/release-notes-generator
-          @semantic-release/git
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN_NELSON }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
           dry_run: true # for debugging
+          extra_plugins: |
+            @semantic-release/commit-analizer
+            @semantic-release/release-notes-generator
+            @semantic-release/git
+          semantic_version: 17.0.7
