@@ -4,8 +4,6 @@ name: Release
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ '**' ] # enable semantic release on branches for testing
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
