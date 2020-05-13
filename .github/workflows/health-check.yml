@@ -2,15 +2,12 @@ name: Health check
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 on:
-  push:
-    branches: [ master ]
   pull_request:
-    branches: [ '**' ]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   jest:
-    name: runner / Jest
+    name: Unit test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,7 +24,7 @@ jobs:
           test-command: yarn test
 
   eslint:
-    name: runner / ESLint
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
