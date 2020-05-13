@@ -1,6 +1,6 @@
 {
   "name": "@flybondi/serverless-rollup-plugin",
-  "version": "0.0.0-development",
+  "version": "1.2.0",
   "description": "A rollup plugin for serverless",
   "main": "index.js",
   "author": "Flybondi <dev@flybondi.com>",
