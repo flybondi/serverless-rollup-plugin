@@ -6,6 +6,11 @@
   "author": "Flybondi <dev@flybondi.com>",
   "license": "UNLICENSED",
   "private": false,
+  "files": [
+    "README.md",
+    "package.json",
+    "index.js"
+  ],
   "keywords": [
     "serverless",
     "1.0",
