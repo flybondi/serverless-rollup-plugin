@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.0...v1.3.1) (2020-05-13)
+
+
+### Bug Fixes
+
+* add src folder to npm package ([#14](https://github.com/flybondi/serverless-rollup-plugin/issues/14)) ([a816805](https://github.com/flybondi/serverless-rollup-plugin/commit/a816805ba924151f85ca33a7dcead04e38e6dc6e))
+
 # [1.3.0](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.2.0...v1.3.0) (2020-05-13)
 
 
