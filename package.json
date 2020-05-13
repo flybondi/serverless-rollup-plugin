@@ -4,12 +4,13 @@
   "description": "A rollup plugin for serverless",
   "main": "index.js",
   "author": "Flybondi <dev@flybondi.com>",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": false,
   "files": [
     "README.md",
     "package.json",
-    "index.js"
+    "index.js",
+    "src/"
   ],
   "keywords": [
     "serverless",
