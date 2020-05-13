@@ -6,6 +6,11 @@
   "author": "Flybondi <dev@flybondi.com>",
   "license": "UNLICENSED",
   "private": false,
+  "files": [
+    "README.md",
+    "package.json",
+    "index.js"
+  ],
   "keywords": [
     "serverless",
     "1.0",
@@ -45,6 +50,12 @@
     "rollup": "^2.7.6",
     "serverless": "^1.35.1"
   },
+  "dependencies": {
+    "bluebird": "^3.5.3",
+    "fs-extra": "^9.0.0",
+    "ramda": "^0.27.0",
+    "yup": "^0.28.5"
+  },
   "husky": {
     "hooks": {
       "commit-msg": "commitlint -e $GIT_PARAMS",
@@ -63,10 +74,39 @@
       "@commitlint/config-conventional"
     ]
   },
-  "dependencies": {
-    "bluebird": "^3.5.3",
-    "fs-extra": "^9.0.0",
-    "ramda": "^0.27.0",
-    "yup": "^0.28.5"
+  "release": {
+    "plugins": [
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "preset": "angular",
+          "releaseRules": [
+            {
+              "type": "docs",
+              "release": "patch"
+            },
+            {
+              "type": "build",
+              "release": "patch"
+            }
+          ]
+        }
+      ],
+      "@semantic-release/release-notes-generator",
+      "@semantic-release/changelog",
+      "@semantic-release/npm",
+      "@semantic-release/github",
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "package.json",
+            "CHANGELOG.md",
+            "docs"
+          ],
+          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        }
+      ]
+    ]
   }
 }
