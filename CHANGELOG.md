@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.2.0...v1.3.0) (2020-05-13)
+
+
+### Features
+
+* set environment variables before using the rollup config file ([#13](https://github.com/flybondi/serverless-rollup-plugin/issues/13)) ([59404a0](https://github.com/flybondi/serverless-rollup-plugin/commit/59404a0bfd39a2ce769ad7147838be8a58d7713a))
+
 # [1.2.0](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.1.0...v1.2.0) (2020-05-13)
 
 
