@@ -119,6 +119,7 @@ class ServerlessRollupPlugin {
       'rollup:clean': this.clean.bind(this),
 
       // Internal events
+      'before:rollup:prepare:validate': this.setEnvironmentVariables.bind(this),
       'rollup:prepare:validate': this.validate.bind(this),
       'rollup:prepare:serverless': this.prepare.bind(this),
       'rollup:compile:bundle': this.bundle.bind(this),
@@ -126,6 +127,24 @@ class ServerlessRollupPlugin {
     };
 
     this.log = createLogger(this.serverless, this.options).bind(this.serverless.cli);
+  }
+
+  setEnvironmentVariables() {
+    // @FIXME(lf):
+    // Maybe use dotenv, but this will work for now.
+    this.log('Rollup: Setting environment variables');
+
+    process.env.IS_OFFLINE = this.options.isOffline || false;
+    process.env.NODE_ENV = pathOr(
+      this.options.environment || 'development',
+      ['service', 'provider', 'environment', 'NODE_ENV'],
+      this.serverless
+    );
+    process.env.SOURCE_MAPS = pathOr(
+      this.options.sourcemaps || false,
+      ['service', 'custom', 'rollup', 'config', 'sourcemaps'],
+      this.serverless
+    );
   }
 
   setOfflineMode() {
