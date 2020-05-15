@@ -188,8 +188,8 @@ class ServerlessRollupPlugin {
       fse.removeSync(folderPath);
     }
 
-    if (this.config.watch) {
-      this.watcher.close();
+    if (this.options.watch) {
+      this.watcher && this.watcher.close();
     }
   }
 
