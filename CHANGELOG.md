@@ -1,3 +1,10 @@
+## [1.3.3](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.2...v1.3.3) (2020-05-15)
+
+
+### Bug Fixes
+
+* check if in watch mode before close it ([#18](https://github.com/flybondi/serverless-rollup-plugin/issues/18)) ([05d662a](https://github.com/flybondi/serverless-rollup-plugin/commit/05d662a7e56134946f182a2bcc7f630a06c9753f))
+
 ## [1.3.2](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.1...v1.3.2) (2020-05-15)
 
 ## [1.3.1](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.0...v1.3.1) (2020-05-13)
