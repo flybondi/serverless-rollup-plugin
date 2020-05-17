@@ -165,6 +165,27 @@ class ServerlessRollupPlugin {
     return output.dir || output.file.split('/')[0];
   }
 
+  onWatchEventHandler(event) {
+    const { code, duration } = event;
+    switch (code) {
+      case 'START':
+        this.log(
+          `Rollup: [${new Date().toISOString()}] - Watcher started and waiting for changes.`
+        );
+        break;
+      case 'BUNDLE_END':
+        this.log(`Rollup: [${new Date().toISOString()}] - Bundle has been rebuilt in ${duration}.`);
+        break;
+      case 'ERROR':
+        this.log(
+          `Rollup: [${new Date().toISOString()}] - There is an error with the bundle, please check what are you trying to build.`
+        );
+        break;
+      default:
+        break;
+    }
+  }
+
   async bundle() {
     this.log('Rollup: Config file is valid, about to bundle lambda function');
     if (!this.options.isOffline && !this.options.watch) {
@@ -240,11 +261,15 @@ class ServerlessRollupPlugin {
       throw new Error('Invalid rollup config');
     }
 
-    if (inputSchema.validateSync(config) && validateOutput(config.output)) {
-      this.config = config;
-    } else {
-      this.log('Rollup: Given config file is not valid, please check the rollup config file');
-      throw new Error('Rollup config is not valid');
+    try {
+      if (inputSchema.validateSync(config) && validateOutput(config.output)) {
+        this.config = config;
+      }
+    } catch (error) {
+      this.log(
+        `Rollup: Given config file is not valid, please check the rollup config file: ${error.message}`
+      );
+      throw new Error(`Rollup config is not valid: ${error.message}`);
     }
   }
 
@@ -254,28 +279,7 @@ class ServerlessRollupPlugin {
     if (watchOptions) {
       this.log('Rollup: Watch mode is enable', this.config.watch);
       const watcher = watch(this.config);
-      watcher.on('event', event => {
-        const { code, duration } = event;
-        switch (code) {
-          case 'START':
-            this.log(
-              `Rollup: [${new Date().toISOString()}] - Watcher started and waiting for changes`
-            );
-            break;
-          case 'BUNDLE_END':
-            this.log(
-              `Rollup: [${new Date().toISOString()}] - Bundle has been rebuilt in ${duration}`
-            );
-            break;
-          case 'ERROR':
-            this.log(
-              `Rollup: [${new Date().toISOString()}] - There is an error with the bundle, please check what are you trying to build.`
-            );
-            break;
-          default:
-            break;
-        }
-      });
+      watcher.on('event', this.onWatchEventHandler.bind(this));
 
       this.watcher = watcher;
       this.options.watch = true;
