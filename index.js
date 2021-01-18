@@ -4,6 +4,10 @@ const { F, ifElse, is, path, pathOr, propEq } = require('ramda');
 const { arrayOutputSchema, inputSchema, outputSchema } = require('./src/schemas');
 const fse = require('fs-extra');
 const Promise = require('bluebird');
+const glob = require('glob');
+const { dirname, extname } = require('path');
+
+const SUPPORTED_EXTENSIONS = ['.js', '.ts', '.jsx', '.tsx'];
 
 /**
  * Check if given value is an instance of array
@@ -77,6 +81,7 @@ class ServerlessRollupPlugin {
         }
       }
     };
+    this.handlerConfigs = [];
 
     this.hooks = {
       // Serverless deploy
@@ -166,7 +171,7 @@ class ServerlessRollupPlugin {
   }
 
   onWatchEventHandler(event) {
-    const { code, duration } = event;
+    const { code, duration, error } = event;
     switch (code) {
       case 'START':
         this.log(
@@ -178,7 +183,7 @@ class ServerlessRollupPlugin {
         break;
       case 'ERROR':
         this.log(
-          `Rollup: [${new Date().toISOString()}] - There is an error with the bundle, please check what are you trying to build.`
+          `Rollup: [${new Date().toISOString()}] - There is an error with the bundle, please check what are you trying to build. [${error}]`
         );
         break;
       default:
@@ -186,12 +191,74 @@ class ServerlessRollupPlugin {
     }
   }
 
+  getEntryExtension(entry) {
+    const files = glob.sync(`${entry}.*`, {
+      cwd: this.serverless.config.servicePath,
+      nodir: true
+    });
+    const [supportedFile] = files.filter(file =>
+      SUPPORTED_EXTENSIONS.find(extension => extension === extname(file))
+    );
+
+    return supportedFile
+      ? { ext: extname(supportedFile), dir: dirname(supportedFile) }
+      : { ext: null, dir: null };
+  }
+
+  prepareIndividualHandler(func, outputDir) {
+    // Need to retrieve the entry file extension
+    const [entry, handler] = func.handler.split('.');
+    const { ext, dir } = this.getEntryExtension(entry);
+    // creating a handler specific input rollup config
+    const config = {
+      ...this.config,
+      input: `${entry}${ext}`,
+      output: {
+        ...this.config.output,
+        dir: `${outputDir}/${dir}`
+      }
+    };
+
+    this.handlerConfigs.push(config);
+
+    // adding the package option to the handler serverless config.
+    const include = [`${outputDir}/${dir}/**/*`];
+    const exclude = ['**/*'];
+
+    func.package &&
+      func.package.include &&
+      func.package.include.length > 0 &&
+      include.push(...func.package.include);
+    func.package &&
+      func.package.exclude &&
+      func.package.exclude.length > 0 &&
+      exclude.push(...func.package.exclude);
+
+    return {
+      ...func,
+      handler: `${outputDir}/${entry}.${handler}`,
+      package: {
+        ...func.package,
+        include,
+        exclude
+      }
+    };
+  }
+
   async bundle() {
+    const writeBundle = async config => {
+      this.log(`Rollup: Creating bundle for ${config.input}`);
+      const bundle = await rollup(config);
+      return bundle.write(config.output);
+    };
+
     this.log('Rollup: Config file is valid, about to bundle lambda function');
     if (!this.options.isOffline && !this.options.watch) {
       try {
-        const bundle = await rollup(this.config);
-        await bundle.write(this.config.output);
+        const { individually } = this.serverless.service.package;
+        individually
+          ? await Promise.all(this.handlerConfigs.map(writeBundle))
+          : await writeBundle(this.config);
 
         this.log('Rollup: Bundle created successfully!');
       } catch (error) {
@@ -221,12 +288,12 @@ class ServerlessRollupPlugin {
     const functions = {};
     const output = this.getOutputFolder();
 
-    // Rollup will bundle all in a single file, so individual package should be override to false and include only the output folder;
     const originalPackage = this.serverless.service.package;
     const include = originalPackage.include || [];
+    const individually = originalPackage.individually || false;
     // Add Rollup output folder so serverles include it in the package.
     this.log('Rollup: Setting package options');
-    include.push(`${this.getOutputFolder()}/**`);
+    !individually && include.push(`${this.getOutputFolder()}/**`);
 
     // Modify functions handler to use the rollup output folder
     this.log('Rollup: Prepare functions handler location');
@@ -234,18 +301,21 @@ class ServerlessRollupPlugin {
       const func = this.serverless.service.getFunction(name);
       const handler = `${output}/${func.handler}`;
       this.log(`Rollup: Preparing ${name} function, setting handler to ${handler}`);
-      functions[name] = { ...func, handler };
+
+      functions[name] = individually
+        ? this.prepareIndividualHandler(func, output)
+        : { ...func, handler };
     });
 
     this.log(`Rollup: Overriding service options`);
+
     this.serverless.service.update({
+      functions,
       package: {
         ...originalPackage,
-        individually: false,
         exclude: ['**/*'],
         include
-      },
-      functions
+      }
     });
   }
 
@@ -277,8 +347,10 @@ class ServerlessRollupPlugin {
     const watchOptions = this.config.watch || false;
 
     if (watchOptions) {
-      this.log('Rollup: Watch mode is enable', this.config.watch);
-      const watcher = watch(this.config);
+      const { individually } = this.serverless.service.package;
+      const config = individually ? this.handlerConfigs : this.config;
+      this.log('Rollup: Watch mode is enable');
+      const watcher = watch(config);
       watcher.on('event', this.onWatchEventHandler.bind(this));
 
       this.watcher = watcher;
