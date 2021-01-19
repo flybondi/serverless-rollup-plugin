@@ -24,7 +24,7 @@ const { rollup } = require('rollup');
 jest.mock('fs-extra', () => ({
   removeSync: mockRemoveSync
 }));
-jest.mock('glob', () => ({
+jest.mock('fast-glob', () => ({
   sync: mockSync
 }));
 const Plugin = require('./index');
@@ -243,10 +243,10 @@ describe('The plugin class methods ', () => {
     const plugin = new Plugin({ config: { servicePath: '' } }, { config: 'mock/rollup.config.js' });
     const path = plugin.getConfigPath();
 
-    expect(path).toEqual('/mock/rollup.config.js');
+    expect(path).toEqual('mock/rollup.config.js');
   });
 
-  it('should return the output dir folder path', () => {
+  it('should return the output dir path', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
 
     plugin.config = {
@@ -255,7 +255,7 @@ describe('The plugin class methods ', () => {
       }
     };
 
-    const path = plugin.getOutputFolder();
+    const path = plugin.getOutputDir();
     expect(path).toEqual('mock/output-dir');
   });
 
@@ -268,7 +268,7 @@ describe('The plugin class methods ', () => {
       }
     };
 
-    const path = plugin.getOutputFolder();
+    const path = plugin.getOutputDir();
     expect(path).toEqual('mock');
   });
 
@@ -439,7 +439,6 @@ describe('The plugin class methods ', () => {
 
   it('should validate the rollup config', () => {
     const plugin = new Plugin({ ...mockServerless, config: { servicePath: '.' } }, mockOptions);
-
     expect(plugin.validate.bind(plugin)).not.toThrow();
   });
 
@@ -455,7 +454,7 @@ describe('The plugin class methods ', () => {
   it('should thrown an Rollup config is not valid error when config has invalid properties', () => {
     const plugin = new Plugin(
       { config: { servicePath: '.' } },
-      { config: 'invalid-rollup.config.js' }
+      { config: './invalid-rollup.config.js' }
     );
 
     expect(plugin.validate.bind(plugin)).toThrow('input is a required field');
@@ -557,17 +556,10 @@ describe('The plugin class methods ', () => {
     mockSync.mockReturnValue(['foo/bar.js']);
 
     expect(plugin.getEntryExtension('build/foo/bar')).toEqual({ ext: '.js', dir: 'foo' });
-    expect(mockSync).toHaveBeenCalledWith('build/foo/bar.*', {
+    expect(mockSync).toHaveBeenCalledWith('build/foo/bar.{js,ts,jsx,tsx}', {
       cwd: 'mock/service-path',
-      nodir: true
+      unique: true
     });
-  });
-
-  it('should retrieve the extension and directory only for support file types', () => {
-    const plugin = new Plugin(mockServerless, mockOptions);
-    mockSync.mockReturnValue(['foo/bar.py']);
-
-    expect(plugin.getEntryExtension('build/foo/bar')).toEqual({ ext: null, dir: null });
   });
 
   it('should prepare a serverless function and rollup config for given handler', () => {
@@ -583,9 +575,9 @@ describe('The plugin class methods ', () => {
       { handler: 'src/foo/bar.handler' },
       'build'
     );
-    expect(mockSync).toHaveBeenCalledWith('src/foo/bar.*', {
+    expect(mockSync).toHaveBeenCalledWith('src/foo/bar.{js,ts,jsx,tsx}', {
       cwd: 'mock/service-path',
-      nodir: true
+      unique: true
     });
     expect(functionConfig).toEqual({
       handler: 'build/src/foo/bar.handler',

@@ -1,51 +1,87 @@
 'use strict';
 const { rollup, watch } = require('rollup');
-const { F, ifElse, is, path, pathOr, propEq } = require('ramda');
-const { arrayOutputSchema, inputSchema, outputSchema } = require('./src/schemas');
 const fse = require('fs-extra');
-const Promise = require('bluebird');
-const glob = require('glob');
-const { dirname, extname } = require('path');
-
-const SUPPORTED_EXTENSIONS = ['.js', '.ts', '.jsx', '.tsx'];
+const glob = require('fast-glob');
+const normalize = require('normalize-path');
+const { dirname, extname, join, sep } = require('path');
+const { arrayOutputSchema, inputSchema, outputSchema } = require('./src/schemas');
 
 /**
- * Check if given value is an instance of array
- * @func
- * @param {*} value to check
- * @returns boolean
+ * @constant {string[]}
  */
-const isArray = is(Array);
-/**
- * Check if the `verbose` options equals true.
- * @func
- * @param {object} value to check the property verbose
- * @returns boolean
- */
-const isVerbose = propEq('verbose', true);
+const SUPPORTED_EXTENSIONS = Object.freeze(['js', 'ts', 'jsx', 'tsx']);
+
 /**
  * This method will a function that will we use to validate the config schema.
- * @func
- * @param {array|object} value to check if is an array
+ *
+ * @param {Array|object} value to check if is an array
  * @returns function to validate schema
  */
-const validateOutput = ifElse(isArray, arrayOutputSchema.validateSync, outputSchema.validateSync);
-/**
- * Method to return a logger function that will only be used in case that the verbose options is true
- * @param {Serverless} serverless instance of serverless
- * @param {Serverless.options} options serverless option object
- * @returns function to log on console
- */
-const createLogger = (serverless, options) =>
-  ifElse(
-    isVerbose,
-    () => path(['cli', 'log'], serverless),
-    () => F
-  )(options);
+const validateOutput = value => {
+  return Array.isArray(value)
+    ? arrayOutputSchema.validateSync(value)
+    : outputSchema.validateSync(value);
+};
 
 /**
+ * Method to return a logger function that will only be used in case the `verbose` options is `true`.
  *
+ * @param {import('serverless')} serverless instance of serverless
+ * @param {import('serverless').Options} options serverless option object
+ * @returns {function} A logging function.
+ */
+const createLogger = (serverless, options) => {
+  return options.verbose ? serverless.cli.log : () => false;
+};
+
+/**
+ * Remove any `null`, `undefined` or `''` elements from `values`.
  *
+ * @param {string[]} values The elements to filter.
+ * @returns {string[]} The filtered array of string elements.
+ */
+const rejectNilOrEmpty = values =>
+  values.filter(value => value !== undefined && value !== null && value.length > 0);
+
+/**
+ * Returns the result of concatenating the given string values, removing
+ * any duplicates as well as `null`, `undefined` or empty values.
+ *
+ * @param {string|string[]} first The first element (or list of elements) to combine.
+ * @param {string|string[]} [second] The second element (or list of elements) to combine.
+ * @returns {string[]} The combined list of element.
+ */
+const concatUniq = (first, second) => {
+  const items = rejectNilOrEmpty([].concat(first, second));
+  return Array.from(new Set(items));
+};
+
+/**
+ * Extracts the root of a given `path` (i.e.: the first component or directory in it).
+ *
+ * @example
+ * rootOfPath('foo/bar/baz.js'); // -> 'foo'
+ *
+ * @param {string} path The path to extract the root from.
+ * @returns {string} The root of the path.
+ */
+const rootOfPath = path => {
+  return path.split(sep).shift();
+};
+
+/**
+ * Join all arguments together and normalize the resulting path'
+ * to be posix/unix-like forward slashes.
+ *
+ * @see https://github.com/mrmlnc/fast-glob#how-to-write-patterns-on-windows
+ * @param {...string[]} paths The list of paths to join.
+ * @returns {string} The joined, normalized path.
+ */
+const globPath = (...paths) => {
+  return normalize(join(...paths));
+};
+
+/**
  * @class ServerlessRollupPlugin
  */
 class ServerlessRollupPlugin {
@@ -85,38 +121,43 @@ class ServerlessRollupPlugin {
 
     this.hooks = {
       // Serverless deploy
-      'before:package:createDeploymentArtifacts': () =>
-        Promise.bind(this)
-          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
-          .then(() => this.serverless.pluginManager.spawn('rollup:compile')),
-      'after:package:createDeploymentArtifacts': () =>
-        Promise.bind(this).then(() => this.serverless.pluginManager.spawn('rollup:clean')),
+      'before:package:createDeploymentArtifacts': async () => {
+        await this.serverless.pluginManager.spawn('rollup:prepare');
+        return this.serverless.pluginManager.spawn('rollup:compile');
+      },
+
+      'after:package:createDeploymentArtifacts': () => {
+        return this.serverless.pluginManager.spawn('rollup:clean');
+      },
 
       // Serverless deploy function
-      'before:package:function:package': () =>
-        Promise.bind(this)
-          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
-          .then(() => this.serverless.pluginManager.spawn('rollup:compile')),
-      'after:package:function:package': () =>
-        Promise.bind(this).then(() => this.serverless.pluginManager.spawn('rollup:clean')),
+      'before:package:function:package': async () => {
+        await this.serverless.pluginManager.spawn('rollup:prepare');
+        return this.serverless.pluginManager.spawn('rollup:compile');
+      },
+
+      'after:package:function:package': () => {
+        return this.serverless.pluginManager.spawn('rollup:clean');
+      },
 
       // Serverless offline support
-      'before:offline:start': () =>
-        Promise.bind(this)
-          .then(() => this.setOfflineMode())
-          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
-          .then(() => this.serverless.pluginManager.spawn('rollup:compile'))
-          .then(() => this.watch()),
+      'before:offline:start': async () => {
+        this.setOfflineMode();
+        await this.serverless.pluginManager.spawn('rollup:prepare');
+        await this.serverless.pluginManager.spawn('rollup:compile');
+        return this.watch();
+      },
 
-      'before:offline:start:init': () =>
-        Promise.bind(this)
-          .then(() => this.setOfflineMode())
-          .then(() => this.serverless.pluginManager.spawn('rollup:prepare'))
-          .then(() => this.serverless.pluginManager.spawn('rollup:compile'))
-          .then(() => this.watch()),
+      'before:offline:start:init': async () => {
+        this.setOfflineMode();
+        await this.serverless.pluginManager.spawn('rollup:prepare');
+        await this.serverless.pluginManager.spawn('rollup:compile');
+        return this.watch();
+      },
 
-      'before:offline:start:end': () =>
-        Promise.bind(this).then(() => this.serverless.pluginManager.spawn('rollup:clean')),
+      'before:offline:start:end': () => {
+        return this.serverless.pluginManager.spawn('rollup:clean');
+      },
 
       // Serverless rollup
       'before:rollup:compile': this.validate.bind(this),
@@ -140,16 +181,14 @@ class ServerlessRollupPlugin {
     this.log('Rollup: Setting environment variables');
 
     process.env.IS_OFFLINE = this.options.isOffline || false;
-    process.env.NODE_ENV = pathOr(
-      this.options.environment || 'development',
-      ['service', 'provider', 'environment', 'NODE_ENV'],
-      this.serverless
-    );
-    process.env.SOURCE_MAPS = pathOr(
-      this.options.sourcemaps || false,
-      ['service', 'custom', 'rollup', 'config', 'sourcemaps'],
-      this.serverless
-    );
+    process.env.NODE_ENV =
+      this.serverless?.service?.provider?.environment.NODE_ENV ??
+      this.options.environment ??
+      'development';
+    process.env.SOURCE_MAPS =
+      this.options.sourcemaps ??
+      this.serverless?.service?.custom?.rollup?.config?.sourcemaps ??
+      false;
   }
 
   setOfflineMode() {
@@ -157,17 +196,15 @@ class ServerlessRollupPlugin {
   }
 
   getConfigPath() {
-    return `${this.serverless.config.servicePath}/${pathOr(
-      this.options.config,
-      ['service', 'custom', 'rollup', 'config'],
-      this.serverless
-    )}`;
+    const configFilename = this.serverless?.service?.custom?.rollup?.config ?? this.options.config;
+    // The value returned by this function is actually used to `require` the file,
+    // the use of `/` as separator is safe
+    return rejectNilOrEmpty([this.serverless.config.servicePath, configFilename]).join('/');
   }
 
-  getOutputFolder() {
-    const { output } = this.config;
-    // FIXME(lf): this will only work on unix envs.
-    return output.dir || output.file.split('/')[0];
+  getOutputDir() {
+    const output = this.config.output;
+    return output.dir ?? rootOfPath(output.file);
   }
 
   onWatchEventHandler(event) {
@@ -192,12 +229,17 @@ class ServerlessRollupPlugin {
   }
 
   getEntryExtension(entry) {
-    const files = glob.sync(`${entry}.*`, {
+    const [supportedFile] = glob.sync(`${entry}.{${SUPPORTED_EXTENSIONS}}`, {
       cwd: this.serverless.config.servicePath,
-      nodir: true
+      unique: true
     });
-    const [supportedFile] = files.filter(file =>
-      SUPPORTED_EXTENSIONS.find(extension => extension === extname(file))
+
+    this.log(
+      `Rollup: ${JSON.stringify({
+        entry,
+        supportedFile,
+        glob: `${entry}.{${SUPPORTED_EXTENSIONS}}`
+      })}`
     );
 
     return supportedFile
@@ -207,40 +249,33 @@ class ServerlessRollupPlugin {
 
   prepareIndividualHandler(func, outputDir) {
     // Need to retrieve the entry file extension
-    const [entry, handler] = func.handler.split('.');
+    const [, entry] = func.handler.match(/^(.*)\.([^.]+)$/);
     const { ext, dir } = this.getEntryExtension(entry);
+
     // creating a handler specific input rollup config
     const config = {
       ...this.config,
       input: `${entry}${ext}`,
       output: {
         ...this.config.output,
-        dir: `${outputDir}/${dir}`
+        dir: join(outputDir, dir)
       }
     };
 
+    this.log(
+      `Rollup: Generated rollup configuration for handler ${func.handler} ${JSON.stringify(config)}`
+    );
+
     this.handlerConfigs.push(config);
 
-    // adding the package option to the handler serverless config.
-    const include = [`${outputDir}/${dir}/**/*`];
-    const exclude = ['**/*'];
-
-    func.package &&
-      func.package.include &&
-      func.package.include.length > 0 &&
-      include.push(...func.package.include);
-    func.package &&
-      func.package.exclude &&
-      func.package.exclude.length > 0 &&
-      exclude.push(...func.package.exclude);
-
     return {
+      // adding the package option to the handler serverless config.
       ...func,
-      handler: `${outputDir}/${entry}.${handler}`,
+      handler: join(outputDir, func.handler),
       package: {
         ...func.package,
-        include,
-        exclude
+        include: concatUniq(globPath(outputDir, dir, '**/*'), func.package?.include),
+        exclude: concatUniq('**/*', func.package?.exclude)
       }
     };
   }
@@ -269,7 +304,7 @@ class ServerlessRollupPlugin {
   }
 
   clean() {
-    const folderPath = this.getOutputFolder();
+    const folderPath = this.getOutputDir();
     this.log(`Rollup: Removing temporary folder ${folderPath}`);
 
     if (this.serverless.utils.dirExistsSync(folderPath)) {
@@ -286,20 +321,20 @@ class ServerlessRollupPlugin {
     // otherwise, set the global package setting.
     const functionNames = this.serverless.service.getAllFunctions();
     const functions = {};
-    const output = this.getOutputFolder();
+    const output = this.getOutputDir();
 
     const originalPackage = this.serverless.service.package;
     const include = originalPackage.include || [];
     const individually = originalPackage.individually || false;
-    // Add Rollup output folder so serverles include it in the package.
+    // Add Rollup output folder so serverless include it in the package.
     this.log('Rollup: Setting package options');
-    !individually && include.push(`${this.getOutputFolder()}/**`);
+    !individually && include.push(globPath(this.getOutputDir(), '**'));
 
     // Modify functions handler to use the rollup output folder
     this.log('Rollup: Prepare functions handler location');
     functionNames.forEach(name => {
       const func = this.serverless.service.getFunction(name);
-      const handler = `${output}/${func.handler}`;
+      const handler = join(output, func.handler);
       this.log(`Rollup: Preparing ${name} function, setting handler to ${handler}`);
 
       functions[name] = individually
@@ -324,7 +359,7 @@ class ServerlessRollupPlugin {
     this.log(`Rollup: Starting rollup plugin with config located at ${path}`);
     const config = require(path);
 
-    if (isArray(config)) {
+    if (Array.isArray(config)) {
       this.log(
         'Rollup: This plugin does not support multiple inputs, please check the rollup config file'
       );
@@ -344,11 +379,12 @@ class ServerlessRollupPlugin {
   }
 
   watch() {
-    const watchOptions = this.config.watch || false;
+    const shouldWatch = this.config.watch || false;
 
-    if (watchOptions) {
-      const { individually } = this.serverless.service.package;
-      const config = individually ? this.handlerConfigs : this.config;
+    if (shouldWatch) {
+      const config = this.serverless.service.package.individually
+        ? this.handlerConfigs
+        : this.config;
       this.log('Rollup: Watch mode is enable');
       const watcher = watch(config);
       watcher.on('event', this.onWatchEventHandler.bind(this));
