@@ -3,8 +3,9 @@ const { rollup, watch } = require('rollup');
 const fse = require('fs-extra');
 const glob = require('fast-glob');
 const normalize = require('normalize-path');
-const { dirname, extname, join, sep } = require('path');
+const { join, sep, basename } = require('path');
 const { arrayOutputSchema, inputSchema, outputSchema } = require('./src/schemas');
+const { nanoid } = require('nanoid');
 
 /**
  * @constant {string[]}
@@ -70,7 +71,7 @@ const rootOfPath = path => {
 };
 
 /**
- * Join all arguments together and normalize the resulting path'
+ * Join all arguments together and normalize the resulting path
  * to be posix/unix-like forward slashes.
  *
  * @see https://github.com/mrmlnc/fast-glob#how-to-write-patterns-on-windows
@@ -228,45 +229,49 @@ class ServerlessRollupPlugin {
     }
   }
 
-  getEntryExtension(entry) {
-    const [supportedFile] = glob.sync(`${entry}.{${SUPPORTED_EXTENSIONS}}`, {
+  getHandlerInputFile(entry) {
+    const [inputFile] = glob.sync(`${entry}.{${SUPPORTED_EXTENSIONS}}`, {
       cwd: this.serverless.config.servicePath,
       unique: true
     });
 
-    return supportedFile
-      ? { ext: extname(supportedFile), dir: dirname(supportedFile) }
-      : { ext: null, dir: null };
+    return inputFile;
   }
 
   prepareIndividualHandler(func, outputDir) {
-    // Need to retrieve the entry file extension
+    // Extract the name of the source file where the handler
+    // function is defined in
     const [, entry] = func.handler.match(/^(.*)\.([^.]+)$/);
-    const { ext, dir } = this.getEntryExtension(entry);
+
+    // Retrieve file name matching the handler name followed by any
+    // of the supported file extensions: `.js`, `.jsx`, `.ts`, `.tsx`
+    const input = this.getHandlerInputFile(entry);
+
+    // Generate a unique directory name for each handler output
+    // This will prevent conflicts between different functions when bundling
+    const dest = join(outputDir, nanoid(7));
 
     // creating a handler specific input rollup config
     const config = {
       ...this.config,
-      input: `${entry}${ext}`,
+      input,
       output: {
         ...this.config.output,
-        dir: join(outputDir, dir)
+        dir: dest
       }
     };
 
-    this.log(
-      `Rollup: Generated rollup configuration for handler ${func.handler} ${JSON.stringify(config)}`
-    );
+    this.log(`Rollup: Generated rollup configuration for handler ${func.handler}`);
 
     this.handlerConfigs.push(config);
 
     return {
-      // adding the package option to the handler serverless config.
+      // Add package options to the handler serverless config
       ...func,
-      handler: join(outputDir, func.handler),
+      handler: join(dest, basename(func.handler)),
       package: {
         ...func.package,
-        include: concatUniq(globPath(outputDir, dir, '**/*'), func.package?.include),
+        include: concatUniq(globPath(dest, '**/*'), func.package?.include),
         exclude: concatUniq('**/*', func.package?.exclude)
       }
     };
@@ -296,11 +301,11 @@ class ServerlessRollupPlugin {
   }
 
   clean() {
-    const folderPath = this.getOutputDir();
-    this.log(`Rollup: Removing temporary folder ${folderPath}`);
+    const outputDir = this.getOutputDir();
+    this.log(`Rollup: Removing temporary folder ${outputDir}`);
 
-    if (this.serverless.utils.dirExistsSync(folderPath)) {
-      fse.removeSync(folderPath);
+    if (this.serverless.utils.dirExistsSync(outputDir)) {
+      fse.removeSync(outputDir);
     }
 
     if (this.options.watch) {
@@ -313,24 +318,24 @@ class ServerlessRollupPlugin {
     // otherwise, set the global package setting.
     const functionNames = this.serverless.service.getAllFunctions();
     const functions = {};
-    const output = this.getOutputDir();
+    const outputDir = this.getOutputDir();
 
     const originalPackage = this.serverless.service.package;
     const include = originalPackage.include || [];
     const individually = originalPackage.individually || false;
     // Add Rollup output folder so serverless include it in the package.
     this.log('Rollup: Setting package options');
-    !individually && include.push(globPath(this.getOutputDir(), '**'));
+    !individually && include.push(globPath(outputDir, '**'));
 
     // Modify functions handler to use the rollup output folder
     this.log('Rollup: Prepare functions handler location');
     functionNames.forEach(name => {
       const func = this.serverless.service.getFunction(name);
-      const handler = join(output, func.handler);
+      const handler = join(outputDir, func.handler);
       this.log(`Rollup: Preparing ${name} function, setting handler to ${handler}`);
 
       functions[name] = individually
-        ? this.prepareIndividualHandler(func, output)
+        ? this.prepareIndividualHandler(func, outputDir)
         : { ...func, handler };
     });
 

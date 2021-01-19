@@ -14,6 +14,9 @@ const mockUpdate = jest.fn();
 const mockLog = jest.fn();
 const mockSpawn = jest.fn();
 const mockSync = jest.fn();
+const mockNanoid = jest.fn();
+
+jest.mock('nanoid', () => ({ nanoid: mockNanoid }));
 
 jest.mock('rollup', () => ({
   rollup: mockRollup,
@@ -555,7 +558,7 @@ describe('The plugin class methods ', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
     mockSync.mockReturnValue(['foo/bar.js']);
 
-    expect(plugin.getEntryExtension('build/foo/bar')).toEqual({ ext: '.js', dir: 'foo' });
+    expect(plugin.getHandlerInputFile('build/foo/bar')).toEqual('foo/bar.js');
     expect(mockSync).toHaveBeenCalledWith('build/foo/bar.{js,ts,jsx,tsx}', {
       cwd: 'mock/service-path',
       unique: true
@@ -564,7 +567,9 @@ describe('The plugin class methods ', () => {
 
   it('should prepare a serverless function and rollup config for given handler', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
-    mockSync.mockReturnValue(['foo/bar.js']);
+    mockSync.mockReturnValueOnce(['src/foo/bar.js']);
+    mockNanoid.mockReturnValueOnce('W7wQ62J');
+
     plugin.config = {
       output: {
         dir: 'build/'
@@ -580,22 +585,24 @@ describe('The plugin class methods ', () => {
       unique: true
     });
     expect(functionConfig).toEqual({
-      handler: 'build/src/foo/bar.handler',
+      handler: 'build/W7wQ62J/bar.handler',
       package: {
-        include: ['build/foo/**/*'],
+        include: ['build/W7wQ62J/**/*'],
         exclude: ['**/*']
       }
     });
     expect(plugin.handlerConfigs).toHaveLength(1);
     expect(plugin.handlerConfigs[0]).toEqual({
       input: 'src/foo/bar.js',
-      output: { dir: 'build/foo' }
+      output: { dir: 'build/W7wQ62J' }
     });
   });
 
   it('should extend current handler include setting', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
-    mockSync.mockReturnValue(['foo/bar.js']);
+    mockSync.mockReturnValueOnce(['foo/bar.js']);
+    mockNanoid.mockReturnValueOnce('v_NGSH5');
+
     plugin.config = {
       output: {
         dir: 'build/'
@@ -603,14 +610,14 @@ describe('The plugin class methods ', () => {
     };
 
     const functionConfig = plugin.prepareIndividualHandler(
-      { handler: 'src/foo/bar.handler', package: { include: ['mock.js'], exclude: ['foo.js'] } },
+      { handler: 'build/bar.handler', package: { include: ['mock.js'], exclude: ['foo.js'] } },
       'build'
     );
 
     expect(functionConfig).toEqual({
-      handler: 'build/src/foo/bar.handler',
+      handler: 'build/v_NGSH5/bar.handler',
       package: {
-        include: ['build/foo/**/*', 'mock.js'],
+        include: ['build/v_NGSH5/**/*', 'mock.js'],
         exclude: ['**/*', 'foo.js']
       }
     });
