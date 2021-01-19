@@ -234,14 +234,6 @@ class ServerlessRollupPlugin {
       unique: true
     });
 
-    this.log(
-      `Rollup: ${JSON.stringify({
-        entry,
-        supportedFile,
-        glob: `${entry}.{${SUPPORTED_EXTENSIONS}}`
-      })}`
-    );
-
     return supportedFile
       ? { ext: extname(supportedFile), dir: dirname(supportedFile) }
       : { ext: null, dir: null };
@@ -385,7 +377,8 @@ class ServerlessRollupPlugin {
       const config = this.serverless.service.package.individually
         ? this.handlerConfigs
         : this.config;
-      this.log('Rollup: Watch mode is enable');
+
+      this.log('Rollup: Watch mode is enabled');
       const watcher = watch(config);
       watcher.on('event', this.onWatchEventHandler.bind(this));
 
