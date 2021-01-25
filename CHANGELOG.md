@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.3...v1.4.0) (2021-01-25)
+
+
+### Features
+
+* add support for individual handler bundles ([#22](https://github.com/flybondi/serverless-rollup-plugin/issues/22)) ([ac1b8e2](https://github.com/flybondi/serverless-rollup-plugin/commit/ac1b8e2245959e4d2c7918e1c3e3bf1575e4c325))
+
 ## [1.3.3](https://github.com/flybondi/serverless-rollup-plugin/compare/v1.3.2...v1.3.3) (2020-05-15)
 
 
