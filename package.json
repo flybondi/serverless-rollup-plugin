@@ -2,68 +2,41 @@
   "name": "@flybondi/serverless-rollup-plugin",
   "version": "1.3.3",
   "description": "A rollup plugin for serverless",
-  "main": "index.js",
-  "author": "Flybondi <dev@flybondi.com>",
-  "license": "MIT",
-  "private": false,
-  "files": [
-    "README.md",
-    "package.json",
-    "index.js",
-    "src/"
-  ],
   "keywords": [
     "serverless",
-    "1.0",
     "rollup",
     "es6",
     "plugin",
     "yarn",
+    "build",
     "flybondi"
   ],
+  "license": "MIT",
+  "author": "Flybondi <dev@flybondi.com>",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "src/"
+  ],
   "scripts": {
-    "lint": "eslint index.js src/**",
+    "lint": "eslint index.js src/",
     "prettier": "prettier --write index.js",
     "start": "serverless offline start --environment development",
-    "test.coverage": "yarn test --coverage --coverageDirectory .coverage",
-    "test.watch": "jest --watchAll",
-    "test": "jest"
-  },
-  "peerDependencies": {
-    "rollup": "^2.10.0"
-  },
-  "devDependencies": {
-    "@commitlint/config-conventional": "^8.3.4",
-    "commitlint": "^8.3.5",
-    "eslint": "^7.0.0",
-    "eslint-config-prettier": "^6.11.0",
-    "eslint-config-standard": "^14.1.1",
-    "eslint-plugin-import": "^2.14.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^3.0.0",
-    "eslint-plugin-promise": "^4.0.1",
-    "eslint-plugin-standard": "^4.0.0",
-    "husky": "^4.2.5",
-    "jest": "^26.0.1",
-    "lint-staged": "^10.2.2",
-    "mockdate": "^2.0.5",
-    "npm-run-all": "^4.1.5",
-    "prettier": "^2.0.5",
-    "rollup": "^2.10.0",
-    "serverless": "^1.70.1"
-  },
-  "dependencies": {
-    "bluebird": "^3.5.3",
-    "fs-extra": "^9.0.0",
-    "ramda": "^0.27.0",
-    "yup": "^0.28.5"
+    "test": "jest",
+    "test:coverage": "yarn test --coverage --coverageDirectory .coverage",
+    "test:watch": "jest --watchAll"
   },
   "husky": {
     "hooks": {
-      "commit-msg": "commitlint -e $GIT_PARAMS",
       "pre-commit": "lint-staged",
-      "pre-push": "run-s test"
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS",
+      "pre-push": "yarn test"
     }
+  },
+  "commitlint": {
+    "extends": [
+      "@commitlint/config-conventional"
+    ]
   },
   "lint-staged": {
     "src/**/*.{js,jsx,json}": [
@@ -71,10 +44,36 @@
       "eslint --fix"
     ]
   },
-  "commitlint": {
-    "extends": [
-      "@commitlint/config-conventional"
-    ]
+  "dependencies": {
+    "fast-glob": "^3.2.5",
+    "fs-extra": "^9.0.1",
+    "nanoid": "^3.1.20",
+    "normalize-path": "^3.0.0",
+    "yup": "^0.32.8"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^11.0.0",
+    "@commitlint/config-conventional": "^11.0.0",
+    "@types/jest": "^26.0.20",
+    "eslint": "^7.18.0",
+    "eslint-config-prettier": "^7.1.0",
+    "eslint-config-standard": "^16.0.2",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.3.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^5.0.0",
+    "husky": "^4.3.8",
+    "jest": "^26.6.3",
+    "lint-staged": "^10.5.3",
+    "mockdate": "^3.0.2",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.2.1",
+    "rollup": "^2.36.2",
+    "serverless": "^2.19.0"
+  },
+  "peerDependencies": {
+    "rollup": "^2.10.0"
   },
   "release": {
     "plugins": [

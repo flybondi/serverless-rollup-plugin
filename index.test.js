@@ -13,6 +13,10 @@ const mockGetFunction = jest.fn().mockReturnValue({ handler: 'mock.handler' });
 const mockUpdate = jest.fn();
 const mockLog = jest.fn();
 const mockSpawn = jest.fn();
+const mockSync = jest.fn();
+const mockNanoid = jest.fn();
+
+jest.mock('nanoid', () => ({ nanoid: mockNanoid }));
 
 jest.mock('rollup', () => ({
   rollup: mockRollup,
@@ -22,6 +26,9 @@ const { rollup } = require('rollup');
 
 jest.mock('fs-extra', () => ({
   removeSync: mockRemoveSync
+}));
+jest.mock('fast-glob', () => ({
+  sync: mockSync
 }));
 const Plugin = require('./index');
 
@@ -38,6 +45,7 @@ beforeEach(() => {
   mockWatch.mockClear();
   mockWatcher.close.mockClear();
   mockSpawn.mockClear();
+  mockSync.mockClear();
 
   MockDate.set('2020-05-15');
 });
@@ -238,10 +246,10 @@ describe('The plugin class methods ', () => {
     const plugin = new Plugin({ config: { servicePath: '' } }, { config: 'mock/rollup.config.js' });
     const path = plugin.getConfigPath();
 
-    expect(path).toEqual('/mock/rollup.config.js');
+    expect(path).toEqual('mock/rollup.config.js');
   });
 
-  it('should return the output dir folder path', () => {
+  it('should return the output dir path', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
 
     plugin.config = {
@@ -250,7 +258,7 @@ describe('The plugin class methods ', () => {
       }
     };
 
-    const path = plugin.getOutputFolder();
+    const path = plugin.getOutputDir();
     expect(path).toEqual('mock/output-dir');
   });
 
@@ -263,7 +271,7 @@ describe('The plugin class methods ', () => {
       }
     };
 
-    const path = plugin.getOutputFolder();
+    const path = plugin.getOutputDir();
     expect(path).toEqual('mock');
   });
 
@@ -275,6 +283,28 @@ describe('The plugin class methods ', () => {
     await plugin.bundle();
     expect(mockRollup).toHaveBeenCalledWith({ output: 'mock-build' });
     expect(mockBundle.write).toHaveBeenCalledWith('mock-build');
+  });
+
+  it('should call the bundle.write rollup method multiple times when individually is set', async () => {
+    const plugin = new Plugin(mockServerless, mockOptions);
+    plugin.options.isOffline = false;
+    plugin.config = { output: 'mock-build' };
+    plugin.serverless.service.package = { individually: true };
+    plugin.handlerConfigs = [
+      {
+        input: 'src/foo/bar.js',
+        output: { dir: 'build/foo' }
+      },
+      {
+        input: 'src/bar/foo.js',
+        output: { dir: 'build/bar' }
+      }
+    ];
+
+    await plugin.bundle();
+    expect(mockRollup).toHaveBeenCalledTimes(2);
+    expect(mockBundle.write).toHaveBeenNthCalledWith(1, { dir: 'build/foo' });
+    expect(mockBundle.write).toHaveBeenNthCalledWith(2, { dir: 'build/bar' });
   });
 
   it('should not bundle when offline mode is set', async () => {
@@ -386,6 +416,7 @@ describe('The plugin class methods ', () => {
 
   it('should prepare the functions config and package setup', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
+    plugin.serverless.service.package = { individually: false };
     plugin.config = {
       output: {
         dir: 'mock'
@@ -411,7 +442,6 @@ describe('The plugin class methods ', () => {
 
   it('should validate the rollup config', () => {
     const plugin = new Plugin({ ...mockServerless, config: { servicePath: '.' } }, mockOptions);
-
     expect(plugin.validate.bind(plugin)).not.toThrow();
   });
 
@@ -427,7 +457,7 @@ describe('The plugin class methods ', () => {
   it('should thrown an Rollup config is not valid error when config has invalid properties', () => {
     const plugin = new Plugin(
       { config: { servicePath: '.' } },
-      { config: 'invalid-rollup.config.js' }
+      { config: './invalid-rollup.config.js' }
     );
 
     expect(plugin.validate.bind(plugin)).toThrow('input is a required field');
@@ -435,6 +465,7 @@ describe('The plugin class methods ', () => {
 
   it('should start the rollup.watch mode', () => {
     const plugin = new Plugin(mockServerless, mockOptions);
+    plugin.serverless.service.package = { individually: false };
     plugin.config = { watch: true };
     plugin.watch();
 
@@ -442,6 +473,26 @@ describe('The plugin class methods ', () => {
     expect(mockOnWatch).toHaveBeenCalled();
     expect(plugin.watcher).toHaveProperty('on');
     expect(plugin.options.watch).toBeTruthy();
+  });
+
+  it('should start the rollup.watch mode with multiple handler configs', () => {
+    const plugin = new Plugin(mockServerless, mockOptions);
+    plugin.serverless.service.package = { individually: true };
+    plugin.handlerConfigs = [
+      {
+        input: 'src/foo/bar.js',
+        output: { dir: 'build/foo' }
+      },
+      {
+        input: 'src/bar/foo.js',
+        output: { dir: 'build/bar' }
+      }
+    ];
+    plugin.config = { watch: true };
+    plugin.watch();
+
+    expect(mockWatch).toHaveBeenCalledWith(plugin.handlerConfigs);
+    expect(mockOnWatch).toHaveBeenCalled();
   });
 
   it('should not start the rollup.watch mode if config.watch is undefined', () => {
@@ -482,13 +533,14 @@ describe('The plugin class methods ', () => {
   it('should log that the watcher has an error', () => {
     const mockEvent = {
       code: 'ERROR',
-      duration: 500
+      duration: 500,
+      error: 'This is a test error'
     };
     const plugin = new Plugin(mockServerless, { ...mockOptions, verbose: true });
     plugin.onWatchEventHandler(mockEvent);
 
     expect(mockLog).toHaveBeenCalledWith(
-      'Rollup: [2020-05-15T00:00:00.000Z] - There is an error with the bundle, please check what are you trying to build.'
+      'Rollup: [2020-05-15T00:00:00.000Z] - There is an error with the bundle, please check what are you trying to build. [This is a test error]'
     );
   });
 
@@ -500,5 +552,74 @@ describe('The plugin class methods ', () => {
     plugin.onWatchEventHandler(mockEvent);
 
     expect(mockLog).not.toHaveBeenCalled();
+  });
+
+  it('should get the extension and directory name of given handler entry', () => {
+    const plugin = new Plugin(mockServerless, mockOptions);
+    mockSync.mockReturnValue(['foo/bar.js']);
+
+    expect(plugin.getHandlerInputFile('build/foo/bar')).toEqual('foo/bar.js');
+    expect(mockSync).toHaveBeenCalledWith('build/foo/bar.{js,ts,jsx,tsx}', {
+      cwd: 'mock/service-path',
+      unique: true
+    });
+  });
+
+  it('should prepare a serverless function and rollup config for given handler', () => {
+    const plugin = new Plugin(mockServerless, mockOptions);
+    mockSync.mockReturnValueOnce(['src/foo/bar.js']);
+    mockNanoid.mockReturnValueOnce('W7wQ62J');
+
+    plugin.config = {
+      output: {
+        dir: 'build/'
+      }
+    };
+
+    const functionConfig = plugin.prepareIndividualHandler(
+      { handler: 'src/foo/bar.handler' },
+      'build'
+    );
+    expect(mockSync).toHaveBeenCalledWith('src/foo/bar.{js,ts,jsx,tsx}', {
+      cwd: 'mock/service-path',
+      unique: true
+    });
+    expect(functionConfig).toEqual({
+      handler: 'build/W7wQ62J/bar.handler',
+      package: {
+        include: ['build/W7wQ62J/**/*'],
+        exclude: ['**/*']
+      }
+    });
+    expect(plugin.handlerConfigs).toHaveLength(1);
+    expect(plugin.handlerConfigs[0]).toEqual({
+      input: 'src/foo/bar.js',
+      output: { dir: 'build/W7wQ62J' }
+    });
+  });
+
+  it('should extend current handler include setting', () => {
+    const plugin = new Plugin(mockServerless, mockOptions);
+    mockSync.mockReturnValueOnce(['foo/bar.js']);
+    mockNanoid.mockReturnValueOnce('v_NGSH5');
+
+    plugin.config = {
+      output: {
+        dir: 'build/'
+      }
+    };
+
+    const functionConfig = plugin.prepareIndividualHandler(
+      { handler: 'build/bar.handler', package: { include: ['mock.js'], exclude: ['foo.js'] } },
+      'build'
+    );
+
+    expect(functionConfig).toEqual({
+      handler: 'build/v_NGSH5/bar.handler',
+      package: {
+        include: ['build/v_NGSH5/**/*', 'mock.js'],
+        exclude: ['**/*', 'foo.js']
+      }
+    });
   });
 });
